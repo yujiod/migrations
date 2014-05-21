@@ -207,6 +207,7 @@ class MigrationShell extends Shell {
 
 		$this->Schema = $this->_getSchema();
 		$migration = array('up' => array(), 'down' => array());
+		$fromSchema = false;
 
 		$oldSchema = $this->_getSchema($this->type);
 		if ($oldSchema !== false) {
@@ -218,6 +219,8 @@ class MigrationShell extends Shell {
 				$newSchema = $this->_readSchema();
 				$comparison = $this->Schema->compare($oldSchema, $newSchema);
 				$migration = $this->_fromComparison($migration, $comparison, $oldSchema->tables, $newSchema['tables']);
+				
+				$fromSchema = true;
 			}
 		} else {
 			$response = $this->in(__d('migrations', 'Do you wanna generate a dump from current database?', true), array('y', 'n'), 'y');
@@ -233,6 +236,8 @@ class MigrationShell extends Shell {
 					$migration['up']['create_table'] = $dump;
 					$migration['down']['drop_table'] = array_keys($dump);
 				}
+
+				$fromSchema = true;
 			}
 		}
 
@@ -254,6 +259,13 @@ class MigrationShell extends Shell {
 
 		$this->out(__d('migrations', 'Mapping Migrations...', true));
 		$this->_writeMap($map);
+
+		if ($fromSchema && isset($comparison)) {
+			$response = $this->in(__d('migrations', 'Do you want update the schema.php file?'), array('y', 'n'), 'y');
+			if (strtolower($response) === 'y') {
+				$this->_updateSchema();
+			}
+		}
 
 		$this->out('');
 		$this->out(__d('migrations', 'Done.', true));
@@ -659,6 +671,23 @@ TEXT;
 		return false;
 	}
 
+/**
+ * Update the schema, making a call to schema shell
+ *
+ * @return void
+ */
+	protected function _updateSchema() {
+		$args = array('schema', 'generate', '--connection', $this->connection);
+		if (!empty($this->params['plugin'])) {
+			$args[] = '-plugin';
+			$args[] = $this->params['plugin'];
+		}
+		if ($this->params['f']) {
+			$args[] = '-f';
+		}
+		$this->Dispatch->parseParams($args);
+		$this->Dispatch->dispatch();
+	}
 /**
  * Callback used to display what migration is being runned
  *
